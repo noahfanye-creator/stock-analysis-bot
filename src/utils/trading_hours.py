@@ -88,3 +88,4 @@ def is_hk_stock_market_open() -> bool:
     except Exception as e:
         print(f"⚠️ 港股交易日检查异常: {e}")
         return True
+

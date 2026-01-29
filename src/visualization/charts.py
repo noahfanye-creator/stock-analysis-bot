@@ -90,7 +90,12 @@ def create_candle_chart(df: Optional[pd.DataFrame], title: str, filename: str, m
 
             if body_height > 0:
                 rect = Rectangle(
-                    (x[i] - 0.3, body_bottom), 0.6, body_height, facecolor=color, edgecolor=color, alpha=0.8
+                    (x[i] - 0.3, body_bottom),
+                    0.6,
+                    body_height,
+                    facecolor=color,
+                    edgecolor=color,
+                    alpha=0.8,
                 )
                 ax1.add_patch(rect)
 
@@ -369,6 +374,7 @@ def create_intraday_timeshare_chart(
         if "plt" in dir():
             plt.close("all")
         import traceback
+
         traceback.print_exc()
         return False
 

@@ -25,9 +25,9 @@ except Exception:
 # 导入工具函数模块
 # noqa: E402 - load_dotenv() 必须在导入前执行
 from src.utils.code_normalizer import is_hk_stock, parse_stock_list  # noqa: E402
-from src.utils.trading_hours import is_china_stock_market_open, is_hk_stock_market_open  # noqa: E402
+from src.utils.trading_hours import is_china_stock_market_open, is_hk_stock_market_open, get_beijing_now  # noqa: E402
 from src.utils.gdrive_uploader import upload_to_gdrive  # noqa: E402
-from src.notify.telegram import send_telegram_msg  # noqa: E402
+from src.notify.telegram import send_telegram_msg, send_telegram_document  # noqa: E402
 
 # 导入报告生成模块
 from src.report import process_multiple_stocks, create_zip_archive  # noqa: E402
@@ -130,7 +130,7 @@ def main(sector_input=None):
     reports_base_dir = config.report_output_dir
     reports_dir = os.path.join(current_dir, reports_base_dir)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = get_beijing_now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join(reports_dir, f"reports_{timestamp}")
 
     try:
@@ -172,9 +172,6 @@ def main(sector_input=None):
     pdf_files = sorted(glob.glob(os.path.join(output_dir, "*.pdf")))
 
     if pdf_files and os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
-        import requests
-
-        token = os.getenv("TELEGRAM_BOT_TOKEN")
         chat_id = os.getenv("TELEGRAM_CHAT_ID")
         success_count = 0
 
@@ -183,29 +180,8 @@ def main(sector_input=None):
 
         # 发送每个 PDF 文件
         for pdf_file in pdf_files:
-            filename = os.path.basename(pdf_file)
-            file_size_mb = os.path.getsize(pdf_file) / (1024 * 1024)
-
-            if file_size_mb > 50:
-                logger.warning(f"⚠️  跳过文件 {filename} (大小: {file_size_mb:.1f}MB，超过50MB限制)")
-                continue
-
-            try:
-                with open(pdf_file, "rb") as f:
-                    response = requests.post(
-                        f"https://api.telegram.org/bot{token}/sendDocument",
-                        data={"chat_id": chat_id},
-                        files={"document": (filename, f, "application/pdf")},
-                        timeout=30,
-                    )
-                    response.raise_for_status()
-                    if response.json().get("ok"):
-                        logger.info(f"✅ Telegram 发送成功: {filename}")
-                        success_count += 1
-                    else:
-                        logger.error(f"❌ Telegram 发送失败: {filename}")
-            except Exception as e:
-                logger.error(f"❌ 发送 {filename} 到 Telegram 出错: {e}")
+            if send_telegram_document(chat_id, pdf_file):
+                success_count += 1
 
         # 发送完成通知
         if success_count > 0:

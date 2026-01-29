@@ -32,6 +32,7 @@ from src.visualization import (
 )
 from src.config import Config
 from src.utils.logger import get_logger
+from src.utils.trading_hours import get_beijing_now
 from src.utils.parallel import batch_process
 from src.utils.exceptions import (
     DataFetchError,
@@ -43,7 +44,12 @@ logger = get_logger(__name__)
 
 
 def _process_single_stock(
-    code_input: str, output_folder: str, sector_input: Optional[str], sector_map: Dict[str, Any], index: int, total: int
+    code_input: str,
+    output_folder: str,
+    sector_input: Optional[str],
+    sector_map: Dict[str, Any],
+    index: int,
+    total: int,
 ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     """
     处理单个股票（内部函数，用于并发处理）
@@ -104,12 +110,12 @@ def _process_single_stock(
         if not is_sector_input:
             stock_code = normalize_code(code_input)
             stock_name = get_name(stock_code)
-            logger.info(f"📈 识别为股票: {stock_code} ({stock_name or '未知'})")
+            logger.info(f"📈 识别为股票: {stock_code} ({stock_name or "未知"})")
 
         if not stock_name:
             stock_name = "未知股票" if not is_sector_input else "未知行业"
 
-        timestamp = datetime.now().strftime("%H%M%S")
+        timestamp = get_beijing_now().strftime("%H%M%S")
         temp_dir = os.path.join(output_folder, f"temp_{stock_code}_{timestamp}")
         os.makedirs(temp_dir, exist_ok=True)
 
@@ -134,7 +140,7 @@ def _process_single_stock(
         indicator_params = config.indicator_params
 
         report_meta = {
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_at": get_beijing_now().strftime("%Y-%m-%d %H:%M:%S"),
             "data_source": data_source,
             "index_source": config.get("data_sources.index_source", "新浪财经"),
             "indicator_params": indicator_params,
@@ -242,9 +248,9 @@ def _process_single_stock(
                 df_1m, stock_name, os.path.join(temp_dir, "intraday_timeshare.png")
             )
 
-        # 生成报告文件名
-        safe_name = re.sub(r'[\\/*?:"<>|]', "_", stock_name)
-        file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 生成报告文件名（使用北京时区，服务器在 UTC 时也一致）
+        safe_name = re.sub(r"[\\/*?:\"<>|]", "_", stock_name)
+        file_timestamp = get_beijing_now().strftime("%Y%m%d_%H%M%S")
         pdf_path = os.path.join(output_folder, f"{safe_name}_{stock_code}_{file_timestamp}.pdf")
         stock_data_map["_meta"] = report_meta
 
@@ -388,7 +394,7 @@ def create_zip_archive(reports_folder: str, zip_filename: Optional[str] = None) 
         return None
 
     if zip_filename is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_beijing_now().strftime("%Y%m%d_%H%M%S")
         zip_filename = f"stock_reports_{timestamp}.zip"
 
     zip_path = os.path.join(reports_folder, zip_filename)

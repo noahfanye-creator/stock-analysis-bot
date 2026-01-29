@@ -16,6 +16,7 @@ import pandas as pd
 from src.utils.font_setup import setup_fonts
 from src.utils.logger import get_logger
 from src.utils.exceptions import ReportGenerationError
+from src.utils.trading_hours import get_beijing_now
 
 logger = get_logger(__name__)
 
@@ -152,7 +153,7 @@ def create_pdf_with_market_analysis(
         story.append(Spacer(1, 10))
         gen_time = (stock_data_map.get("_meta") or {}).get("generated_at")
         if not gen_time:
-            gen_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            gen_time = get_beijing_now().strftime("%Y-%m-%d %H:%M:%S")
         story.append(Paragraph(f"生成时间: {gen_time}", normal_style))
         story.append(Spacer(1, 15))
 
