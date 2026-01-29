@@ -35,11 +35,14 @@ class TestDataFetchers:
         assert name == "sh999999"
 
     @patch("src.data.fetchers.a_share_fetcher.fetch_kline_data_from_sina")
+    @patch("src.utils.trading_hours.is_beijing_after_market_close")
     @patch("src.utils.trading_hours.is_china_stock_market_open")
-    def test_fetch_kline_data_basic(self, mock_market_open, mock_fetch):
+    def test_fetch_kline_data_basic(self, mock_market_open, mock_after_close, mock_fetch):
         """测试K线数据获取（基础功能）"""
         # Mock 市场状态为非交易日，避免日期检查
         mock_market_open.return_value = False
+        # Mock 未收盘，避免要求数据包含今天的检查
+        mock_after_close.return_value = False
 
         # 模拟返回数据
         mock_df = pd.DataFrame(
