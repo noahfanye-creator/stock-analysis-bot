@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票分析报告 - 查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card p {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .search-box {
+            margin-bottom: 20px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .search-box input:focus {
+            border-color: #667eea;
+        }
+        
+        .reports-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .reports-table th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .reports-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .reports-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .stock-code {
+            font-family: 'Courier New', monospace;
+            background: #e3f2fd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #1976d2;
+        }
+        
+        .stock-name {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 2px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-download {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-download:hover {
+            background: #5568d3;
+        }
+        
+        .btn-view {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .btn-view:hover {
+            background: #45a049;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 股票分析报告</h1>
+            <p>查看和下载生成的 PDF 分析报告</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>{{ total_reports }}</h3>
+                <p>总报告数</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ total_size_mb }} MB</h3>
+                <p>总大小</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ stock_stats|length }}</h3>
+                <p>股票数量</p>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 搜索股票代码或名称..." onkeyup="filterReports()">
+            </div>
+            
+            {% if reports %}
+            <table class="reports-table">
+                <thead>
+                    <tr>
+                        <th>股票</th>
+                        <th>文件名</th>
+                        <th>大小</th>
+                        <th>生成时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="reportsTableBody">
+                    {% for report in reports %}
+                    <tr data-name="{{ report.stock_name }}" data-code="{{ report.stock_code }}">
+                        <td>
+                            <div class="stock-name">{{ report.stock_name }}</div>
+                            <div class="stock-code">{{ report.stock_code }}</div>
+                        </td>
+                        <td>{{ report.filename }}</td>
+                        <td>{{ report.size_mb }} MB</td>
+                        <td>{{ report.mtime }}</td>
+                        <td>
+                            <a href="/view/{{ report.path }}" target="_blank" class="btn btn-view">预览</a>
+                            <a href="/download/{{ report.path }}" class="btn btn-download">下载</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <h3>暂无报告</h3>
+                <p>还没有生成任何分析报告</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="footer">
+            <p>股票分析机器人 | 报告查看器 v1.0</p>
+        </div>
+    </div>
+    
+    <script>
+        function filterReports() {
+            const input = document.getElementById('searchInput');
+            const filter = input.value.toLowerCase();
+            const table = document.getElementById('reportsTableBody');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const name = rows[i].getAttribute('data-name').toLowerCase();
+                const code = rows[i].getAttribute('data-code').toLowerCase();
+                
+                if (name.includes(filter) || code.includes(filter)) {
+                    rows[i].style.display = '';
+                } else {
+                    rows[i].style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

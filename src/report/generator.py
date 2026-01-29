@@ -24,7 +24,12 @@ from src.data.fetchers import (
     filter_trading_hours,
 )
 from src.analysis import calculate_technical_indicators, resample_kline_data
-from src.visualization import create_candle_chart, create_indices_charts, create_pdf_with_market_analysis
+from src.visualization import (
+    create_candle_chart,
+    create_indices_charts,
+    create_intraday_timeshare_chart,
+    create_pdf_with_market_analysis,
+)
 from src.config import Config
 from src.utils.logger import get_logger
 from src.utils.parallel import batch_process
@@ -229,6 +234,13 @@ def _process_single_stock(
         for key, df, title, max_points in chart_configs:
             if df is not None and len(df) >= 5:
                 create_candle_chart(df, title, os.path.join(temp_dir, f"{key}.png"), max_points=max_points)
+
+        # 个股分时图（仅当日 1m 数据足够时）
+        df_1m = stock_data_map.get("1m")
+        if df_1m is not None and len(df_1m) >= 5:
+            create_intraday_timeshare_chart(
+                df_1m, stock_name, os.path.join(temp_dir, "intraday_timeshare.png")
+            )
 
         # 生成报告文件名
         safe_name = re.sub(r'[\\/*?:"<>|]', "_", stock_name)

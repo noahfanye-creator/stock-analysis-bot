@@ -126,9 +126,9 @@ def create_candle_chart(df: Optional[pd.DataFrame], title: str, filename: str, m
             ax2.plot(x, plot_data["DIF"], "black", linewidth=1.5, label="DIF")
             ax2.plot(x, plot_data["DEA"], "orange", linewidth=1.5, label="DEA")
             ax2.axhline(y=0, color="gray", linestyle="-", linewidth=0.5, alpha=0.5)
+            ax2.legend(loc="upper left", fontsize="small")
 
         ax2.set_ylabel("MACD")
-        ax2.legend(loc="upper left", fontsize="small")
         ax2.grid(True, alpha=0.3)
         if not intraday:
             ax2.xaxis_date()
@@ -143,10 +143,10 @@ def create_candle_chart(df: Optional[pd.DataFrame], title: str, filename: str, m
             ax3.axhline(y=80, color="red", linestyle="--", linewidth=0.5, alpha=0.5)
             ax3.axhline(y=20, color="green", linestyle="--", linewidth=0.5, alpha=0.5)
             ax3.axhline(y=50, color="gray", linestyle="-", linewidth=0.5, alpha=0.3)
+            ax3.legend(loc="upper left", fontsize="small")
 
         ax3.set_ylabel("KDJ")
         ax3.set_ylim(-20, 120)
-        ax3.legend(loc="upper left", fontsize="small")
         ax3.grid(True, alpha=0.3)
         if not intraday:
             ax3.xaxis_date()
@@ -216,6 +216,159 @@ def create_candle_chart(df: Optional[pd.DataFrame], title: str, filename: str, m
         print(f"   图表生成失败: {str(e)[:100]}")
         import traceback
 
+        traceback.print_exc()
+        return False
+
+
+def create_intraday_timeshare_chart(
+    df_1m: Optional[pd.DataFrame],
+    stock_name: str,
+    filename: str,
+) -> bool:
+    """创建个股分时图（三栏：价格+均价、成交量、量比）
+
+    样式参考常见行情软件：上方为分时价与均价线，中间为成交量柱，下方为量比曲线。
+
+    Args:
+        df_1m: 1分钟K线 DataFrame，需含 Open/High/Low/Close/Volume，可选 Volume_Ratio
+        stock_name: 股票名称（用于标题）
+        filename: 保存路径
+
+    Returns:
+        bool: 是否生成成功
+    """
+    if df_1m is None or len(df_1m) < 5:
+        return False
+    if not is_intraday_data(df_1m):
+        return False
+
+    try:
+        plot_data = df_1m.copy()
+        plot_data = normalize_beijing_time(plot_data)
+
+        # 取最近一个交易日的 1m 数据（按日期分组，取 bar 数最多的那天）
+        plot_data["_date"] = plot_data.index.date
+        day_counts = plot_data.groupby("_date").size()
+        if day_counts.empty:
+            return False
+        last_date = day_counts.idxmax()
+        plot_data = plot_data[plot_data["_date"] == last_date].drop(columns=["_date"])
+        plot_data = plot_data.sort_index()
+        if len(plot_data) < 5:
+            return False
+
+        dates = plot_data.index.to_list()
+        x = np.arange(len(dates))
+        closes = plot_data["Close"].values
+        volumes = plot_data["Volume"].values
+        opens = plot_data["Open"].values
+        open_price = float(opens[0])
+
+        # 均价（VWAP）：累计成交额/累计成交量
+        cum_vol = np.maximum(np.cumsum(volumes), 1e-8)
+        cum_amount = np.cumsum(closes * volumes)
+        avg_prices = cum_amount / cum_vol
+
+        # 涨跌幅（相对开盘）
+        pct_change = (closes - open_price) / open_price * 100 if open_price else np.zeros_like(closes)
+
+        volume_ratios = None
+        if "Volume_Ratio" in plot_data.columns:
+            volume_ratios = plot_data["Volume_Ratio"].values
+        else:
+            vol_ma5 = pd.Series(volumes).rolling(5, min_periods=1).mean().values
+            volume_ratios = np.where(vol_ma5 > 0, volumes / vol_ma5, 1.0)
+
+        # 字体
+        font_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "SimHei.ttf"),
+            "/System/Library/Fonts/PingFang.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        ]
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    fm.fontManager.addfont(font_path)
+                    font_prop = fm.FontProperties(fname=font_path)
+                    plt.rcParams["font.sans-serif"] = [font_prop.get_name(), "Arial"]
+                    plt.rcParams["axes.unicode_minus"] = False
+                    break
+                except Exception:
+                    continue
+
+        fig, axes = plt.subplots(3, 1, figsize=(12, 8), gridspec_kw={"height_ratios": [3, 1, 1]})
+        ax1, ax2, ax3 = axes
+
+        # ---------- 第一栏：分时价 + 均价 ----------
+        ax1.fill_between(x, open_price, closes, where=(closes >= open_price), color="red", alpha=0.1)
+        ax1.fill_between(x, open_price, closes, where=(closes < open_price), color="green", alpha=0.1)
+        ax1.plot(x, closes, color="#1f77b4", linewidth=2, label="分时价")
+        ax1.plot(x, avg_prices, color="#ff7f0e", linewidth=1.5, label="均价")
+
+        ax1.axhline(y=open_price, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
+        ax1.set_ylabel("价格", fontsize=10)
+        ax1.legend(loc="upper right", fontsize=9)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(-0.5, len(x) - 0.5)
+
+        # 左 Y 轴：价格；高于开盘标红，低于标绿
+        ymin, ymax = float(np.min(closes)), float(np.max(closes))
+        ymid = open_price
+        ax1.set_ylim(ymin - (ymax - ymin) * 0.02, ymax + (ymax - ymin) * 0.02)
+        ax1.tick_params(axis="y", labelcolor="black")
+
+        # 右 Y 轴：涨跌幅（与价格轴对齐：开盘价对应 0%）
+        ax1_right = ax1.twinx()
+        ax1_right.set_ylabel("涨跌幅(%)", fontsize=10)
+        pct_min, pct_max = float(np.min(pct_change)), float(np.max(pct_change))
+        ax1_right.set_ylim(pct_min - 0.5, pct_max + 0.5)
+        ax1_right.axhline(y=0, color="gray", linestyle="-", linewidth=0.5)
+        # 右轴刻度显示百分比
+        ax1_right.tick_params(axis="y", labelcolor="gray")
+
+        # 标题：股票名、均价、最新
+        latest_price = float(closes[-1])
+        avg_latest = float(avg_prices[-1])
+        ax1.set_title(f"{stock_name}  均价:{avg_latest:.2f}  最新:{latest_price:.2f}", fontsize=12)
+
+        # ---------- 第二栏：成交量 ----------
+        vol_colors = ["red" if c >= open_price else "green" for c in closes]
+        ax2.bar(x, volumes, color=vol_colors, alpha=0.7, width=0.9)
+        ax2.set_ylabel("成交量", fontsize=10)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(-0.5, len(x) - 0.5)
+        if np.max(volumes) > 10000:
+            ax2.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+
+        # ---------- 第三栏：量比 ----------
+        ax3.plot(x, volume_ratios, color="#1f77b4", linewidth=1.5)
+        ax3.axhline(y=1.0, color="gray", linestyle="--", linewidth=0.6, alpha=0.6)
+        ax3.set_ylabel("量比", fontsize=10)
+        ax3.set_xlabel("时间", fontsize=10)
+        ax3.grid(True, alpha=0.3)
+        ax3.set_xlim(-0.5, len(x) - 0.5)
+        vr_last = float(volume_ratios[-1]) if len(volume_ratios) else 1.0
+        ax3.set_title(f"量比 {vr_last:.2f}", fontsize=10)
+
+        # X 轴时间标签（09:30-15:00）
+        tick_count = min(8, len(x))
+        tick_positions = np.linspace(0, len(x) - 1, tick_count, dtype=int)
+        tick_labels = [dates[i].strftime("%H:%M") for i in tick_positions]
+        for ax in [ax1, ax2, ax3]:
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=0)
+
+        plt.tight_layout()
+        plt.savefig(filename, dpi=120, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+
+        if os.path.exists(filename) and os.path.getsize(filename) > 1024:
+            return True
+        return False
+    except Exception as e:
+        if "plt" in dir():
+            plt.close("all")
+        import traceback
         traceback.print_exc()
         return False
 

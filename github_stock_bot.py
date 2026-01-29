@@ -6,8 +6,12 @@
 
 import os
 import sys
+import warnings
 from datetime import datetime
 from dotenv import load_dotenv
+
+# 抑制 py_mini_racer / pkg_resources 弃用警告（来自 akshare 依赖）
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
 
 # 加载 .env 环境变量
 load_dotenv()

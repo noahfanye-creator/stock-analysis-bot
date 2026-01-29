@@ -525,6 +525,30 @@ def create_pdf_with_market_analysis(
         else:
             story.append(Paragraph("三、个股技术分析", section_style))
 
+            # 个股分时图（价格+均价、成交量、量比）
+            intraday_img = os.path.join(temp_dir, "intraday_timeshare.png")
+            if os.path.exists(intraday_img):
+                story.append(Paragraph("个股分时图", subtitle_style))
+                story.append(Spacer(1, 8))
+                try:
+                    from PIL import Image as PILImage
+
+                    pil_img = PILImage.open(intraday_img)
+                    iw, ih = pil_img.size
+                    ratio = min(500 / iw, 320 / ih)
+                    img = Image(intraday_img, width=iw * ratio, height=ih * ratio)
+                    img.hAlign = "CENTER"
+                    story.append(img)
+                    story.append(
+                        Paragraph(
+                            "分时价(蓝)、均价(橙)、涨跌区域着色；下方为成交量与量比。",
+                            ParagraphStyle(name="TimeshareDesc", parent=normal_style, fontSize=9),
+                        )
+                    )
+                    story.append(Spacer(1, 15))
+                except Exception:
+                    pass
+
             periods = [
                 ("日线级别分析", "day"),
                 ("周线级别分析", "week"),

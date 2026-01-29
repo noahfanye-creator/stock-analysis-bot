@@ -3,7 +3,7 @@
 提供图表生成和PDF报告生成功能
 """
 
-from .charts import create_candle_chart, create_indices_charts
+from .charts import create_candle_chart, create_indices_charts, create_intraday_timeshare_chart
 
 from .pdf_generator import create_pdf_with_market_analysis
 
@@ -13,6 +13,7 @@ __all__ = [
     # 图表生成
     "create_candle_chart",
     "create_indices_charts",
+    "create_intraday_timeshare_chart",
     # PDF生成
     "create_pdf_with_market_analysis",
     # 报告模板

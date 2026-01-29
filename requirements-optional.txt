@@ -9,5 +9,8 @@ python-dotenv==1.0.1
 # AI策略解析（可选）
 google-generativeai==0.8.3
 
+# Web 界面（可选）
+Flask>=2.3.0,<3.0
+
 # 技术分析库（可选，当前未使用但保留）
 # ta==0.11.0
