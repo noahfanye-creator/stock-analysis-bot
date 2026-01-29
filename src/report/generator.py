@@ -110,7 +110,7 @@ def _process_single_stock(
         if not is_sector_input:
             stock_code = normalize_code(code_input)
             stock_name = get_name(stock_code)
-            logger.info(f"📈 识别为股票: {stock_code} ({stock_name or "未知"})")
+            logger.info(f"📈 识别为股票: {stock_code} ({stock_name or '未知'})")
 
         if not stock_name:
             stock_name = "未知股票" if not is_sector_input else "未知行业"
