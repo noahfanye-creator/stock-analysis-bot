@@ -244,9 +244,7 @@ def _process_single_stock(
         # 个股分时图（仅当日 1m 数据足够时）
         df_1m = stock_data_map.get("1m")
         if df_1m is not None and len(df_1m) >= 5:
-            create_intraday_timeshare_chart(
-                df_1m, stock_name, os.path.join(temp_dir, "intraday_timeshare.png")
-            )
+            create_intraday_timeshare_chart(df_1m, stock_name, os.path.join(temp_dir, "intraday_timeshare.png"))
 
         # 生成报告文件名（使用北京时区，服务器在 UTC 时也一致）
         safe_name = re.sub(r"[\\/*?:\"<>|]", "_", stock_name)
