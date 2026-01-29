@@ -318,7 +318,6 @@ def create_intraday_timeshare_chart(
 
         # 左 Y 轴：价格；高于开盘标红，低于标绿
         ymin, ymax = float(np.min(closes)), float(np.max(closes))
-        ymid = open_price
         ax1.set_ylim(ymin - (ymax - ymin) * 0.02, ymax + (ymax - ymin) * 0.02)
         ax1.tick_params(axis="y", labelcolor="black")
 
@@ -370,7 +369,7 @@ def create_intraday_timeshare_chart(
         if os.path.exists(filename) and os.path.getsize(filename) > 1024:
             return True
         return False
-    except Exception as e:
+    except Exception:
         if "plt" in dir():
             plt.close("all")
         import traceback

@@ -4,7 +4,6 @@ PDF报告生成模块
 """
 
 import os
-from datetime import datetime
 from typing import Any, Dict
 
 from reportlab.lib.pagesizes import A4

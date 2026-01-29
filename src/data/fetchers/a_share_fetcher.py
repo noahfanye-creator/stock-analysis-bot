@@ -268,9 +268,9 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
     use_cache = True
     try:
         from src.utils.cache import get_cache
-        from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
+        from src.utils.trading_hours import is_china_stock_market_open, is_beijing_trading_time, get_beijing_date
 
-        if is_ashare and scale == 240 and is_china_stock_market_open():
+        if is_ashare and scale == 240 and (is_china_stock_market_open() or is_beijing_trading_time()):
             use_cache = False
             logger.debug("交易时段 A 股日线 %s 跳过缓存，拉取最新数据", symbol)
     except Exception:
@@ -279,9 +279,6 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
     # 非上述情况时从缓存获取
     if use_cache:
         try:
-            from src.utils.cache import get_cache
-            import pandas as pd
-
             cache = get_cache()
             if cache is not None:
                 if scale == 240:
@@ -355,17 +352,17 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
                 except Exception as e:
                     logger.warning("替代方法失败: %s", e)
 
-            # 如果是交易日且是日线数据，检查获取到的数据是否包含北京「今天」
+            # 仅在北京 15:00 收盘后才要求日线含「今天」；交易时段内日线多未更新今日，接受昨日为最新
             if df is not None and not df.empty and is_ashare and scale == 240:
                 try:
-                    from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
+                    from src.utils.trading_hours import is_beijing_after_market_close, get_beijing_date
 
-                    if is_china_stock_market_open():
+                    if is_beijing_after_market_close():
                         today = get_beijing_date()
                         latest_date = df.index.max().date() if not df.empty else None
                         if latest_date != today:
                             logger.warning(
-                                "北京今日为交易日，但接口数据不包含今日 %s（最新日期：%s），返回None",
+                                "北京已收盘但接口数据不包含今日 %s（最新日期：%s），返回None",
                                 symbol,
                                 latest_date,
                             )
@@ -397,17 +394,17 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
         except Exception:
             pass
 
-    # 最终验证：交易日且日线时，确保返回数据包含北京「今天」
+    # 最终验证：仅在北京 15:00 收盘后才要求日线含「今天」
     if df is not None and not df.empty and is_ashare and scale == 240:
         try:
-            from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
+            from src.utils.trading_hours import is_beijing_after_market_close, get_beijing_date
 
-            if is_china_stock_market_open():
+            if is_beijing_after_market_close():
                 today = get_beijing_date()
                 latest_date = df.index.max().date() if not df.empty else None
                 if latest_date != today:
                     logger.warning(
-                        "最终验证失败：北京今日为交易日，但数据不包含今日 %s（最新：%s），返回None",
+                        "最终验证失败：北京已收盘，数据不包含今日 %s（最新：%s），返回None",
                         symbol,
                         latest_date,
                     )
