@@ -1,16 +1,35 @@
 """
 交易时间检查模块
 检查A股和港股是否为交易日
+所有「今天」均按北京时区判断，避免服务器在 UTC 等时区时误判
 """
 
-from datetime import datetime
-import pandas as pd
+from datetime import datetime, date, timedelta
+
+# 北京时区
+try:
+    from zoneinfo import ZoneInfo
+    BEIJING = ZoneInfo("Asia/Shanghai")
+except ImportError:
+    BEIJING = None  # 无 zoneinfo 时用 UTC+8 近似
 
 # 可选依赖：akshare
 try:
     import akshare as ak
 except Exception:
     ak = None
+
+
+def get_beijing_now() -> datetime:
+    """当前北京时间的 datetime（用于判断交易日、数据日期）。"""
+    if BEIJING is not None:
+        return datetime.now(BEIJING)
+    return datetime.utcnow() + timedelta(hours=8)
+
+
+def get_beijing_date() -> date:
+    """当前北京时间的日期（用于判断「今天」是否为交易日、数据是否含当日）。"""
+    return get_beijing_now().date()
 
 
 def is_china_stock_market_open() -> bool:
@@ -29,9 +48,10 @@ def is_china_stock_market_open() -> bool:
         if df is None or df.empty:
             return True  # 接口故障时默认运行，防止漏发
 
-        # 比较最后交易日与系统今日日期
+        # 比较最后交易日与北京「今天」
+        import pandas as pd
         last_trade_date = pd.to_datetime(df.iloc[-1]["date"]).date()
-        today = datetime.now().date()
+        today = get_beijing_date()
 
         # 如果上证最后交易日期不是今天，说明今天休市
         if last_trade_date != today:
@@ -58,8 +78,9 @@ def is_hk_stock_market_open() -> bool:
         if df is None or df.empty:
             return True
 
+        import pandas as pd
         last_trade_date = pd.to_datetime(df.iloc[-1]["date"]).date()
-        today = datetime.now().date()
+        today = get_beijing_date()
 
         if last_trade_date != today:
             return False

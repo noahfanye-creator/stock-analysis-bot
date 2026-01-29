@@ -264,48 +264,57 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
     """
     is_ashare = symbol.startswith("sh") or symbol.startswith("sz")
 
-    # 尝试从缓存获取（交易日且是日线数据时，需要检查缓存数据是否包含今天的数据）
+    # 交易时段内 A 股日线不读缓存，始终从接口拉取，保证报告数据为当日最新
+    use_cache = True
     try:
         from src.utils.cache import get_cache
-        from src.utils.trading_hours import is_china_stock_market_open
-        import pandas as pd
+        from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
 
-        cache = get_cache()
-        if cache is not None:
-            if scale == 240:
-                ttl_hours = 24
-            elif scale in [30, 5]:
-                ttl_hours = 1
-            else:
-                ttl_hours = 0.5
-            cached_data = cache.get(
-                "fetch_kline_data",
-                ttl_hours=ttl_hours,
-                symbol=symbol,
-                scale=scale,
-                datalen=datalen,
-            )
-            if cached_data is not None:
-                # 如果是交易日且是日线数据，检查缓存数据是否包含今天的数据
-                if is_ashare and scale == 240 and is_china_stock_market_open():
-                    today = pd.Timestamp.now().date()
-                    latest_date = cached_data.index.max().date() if not cached_data.empty else None
-                    if latest_date == today:
-                        # 缓存数据包含今天的数据，可以使用
-                        logger.debug("缓存数据包含今天的数据 %s，使用缓存", symbol)
-                        return cached_data
-                    else:
-                        # 缓存数据不包含今天的数据，跳过缓存，执行增量更新
-                        logger.debug(
-                            "缓存数据不包含今天的数据 %s（最新日期：%s），跳过缓存",
-                            symbol,
-                            latest_date,
-                        )
-                else:
-                    # 非交易日或非日线数据，直接使用缓存
-                    return cached_data
+        if is_ashare and scale == 240 and is_china_stock_market_open():
+            use_cache = False
+            logger.debug("交易时段 A 股日线 %s 跳过缓存，拉取最新数据", symbol)
     except Exception:
         pass
+
+    # 非上述情况时从缓存获取
+    if use_cache:
+        try:
+            from src.utils.cache import get_cache
+            import pandas as pd
+
+            cache = get_cache()
+            if cache is not None:
+                if scale == 240:
+                    ttl_hours = 24
+                elif scale in [30, 5]:
+                    ttl_hours = 1
+                else:
+                    ttl_hours = 0.5
+                cached_data = cache.get(
+                    "fetch_kline_data",
+                    ttl_hours=ttl_hours,
+                    symbol=symbol,
+                    scale=scale,
+                    datalen=datalen,
+                )
+                if cached_data is not None:
+                    # 日线且非交易时段：缓存可用；交易时段已在上面跳过缓存
+                    if is_ashare and scale == 240:
+                        today = get_beijing_date()
+                        latest_date = cached_data.index.max().date() if not cached_data.empty else None
+                        if latest_date != today:
+                            logger.debug(
+                                "缓存不包含北京今日 %s（最新：%s），跳过缓存",
+                                symbol,
+                                latest_date,
+                            )
+                        else:
+                            logger.debug("缓存包含北京今日 %s，使用缓存", symbol)
+                            return cached_data
+                    else:
+                        return cached_data
+        except Exception:
+            pass
 
     if symbol.startswith("HK."):
         from .hk_stock_fetcher import fetch_kline_data_from_hk_sources
@@ -346,18 +355,17 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
                 except Exception as e:
                     logger.warning("替代方法失败: %s", e)
 
-            # 如果是交易日且是日线数据，检查获取到的数据是否包含今天的数据
+            # 如果是交易日且是日线数据，检查获取到的数据是否包含北京「今天」
             if df is not None and not df.empty and is_ashare and scale == 240:
                 try:
-                    from src.utils.trading_hours import is_china_stock_market_open
-                    import pandas as pd
+                    from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
 
                     if is_china_stock_market_open():
-                        today = pd.Timestamp.now().date()
+                        today = get_beijing_date()
                         latest_date = df.index.max().date() if not df.empty else None
                         if latest_date != today:
                             logger.warning(
-                                "今天是交易日，但完整获取的数据不包含今天的数据 %s（最新日期：%s），返回None",
+                                "北京今日为交易日，但接口数据不包含今日 %s（最新日期：%s），返回None",
                                 symbol,
                                 latest_date,
                             )
@@ -389,24 +397,22 @@ def fetch_kline_data(symbol: str, scale: int = 240, datalen: int = 100) -> Optio
         except Exception:
             pass
 
-    # 最终验证：如果是交易日且是日线数据，确保返回的数据包含今天的数据
+    # 最终验证：交易日且日线时，确保返回数据包含北京「今天」
     if df is not None and not df.empty and is_ashare and scale == 240:
         try:
-            from src.utils.trading_hours import is_china_stock_market_open
-            import pandas as pd
+            from src.utils.trading_hours import is_china_stock_market_open, get_beijing_date
 
             if is_china_stock_market_open():
-                today = pd.Timestamp.now().date()
+                today = get_beijing_date()
                 latest_date = df.index.max().date() if not df.empty else None
                 if latest_date != today:
                     logger.warning(
-                        "最终验证失败：今天是交易日，但返回的数据不包含今天的数据 %s（最新日期：%s），返回None",
+                        "最终验证失败：北京今日为交易日，但数据不包含今日 %s（最新：%s），返回None",
                         symbol,
                         latest_date,
                     )
                     return None
-                else:
-                    logger.debug("最终验证通过：返回的数据包含今天的数据 %s", symbol)
+                logger.debug("最终验证通过：数据包含北京今日 %s", symbol)
         except Exception as e:
             logger.debug("最终验证异常 %s: %s", symbol, e)
 
